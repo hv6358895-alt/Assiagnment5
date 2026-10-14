@@ -1,0 +1,247 @@
+
+ // ==========================================
+ // UNIVERSITY COURSE REGISTRATION SYSTEM
+ // Database: Neo4j
+ // ==========================================
+
+ // 1. CREATE CONSTRAINTS
+
+CREATE CONSTRAINT student_id IF NOT EXISTS
+FOR (s:Student) REQUIRE s.studentId IS UNIQUE;
+
+CREATE CONSTRAINT faculty_id IF NOT EXISTS
+FOR (f:Faculty) REQUIRE f.facultyId IS UNIQUE;
+
+CREATE CONSTRAINT course_code IF NOT EXISTS
+FOR (c:Course) REQUIRE c.courseCode IS UNIQUE;
+
+CREATE CONSTRAINT dept_id IF NOT EXISTS
+FOR (d:Department) REQUIRE d.departmentId IS UNIQUE;
+
+
+ // 2. CREATE DEPARTMENTS
+
+UNWIND [
+ {id:'D101', name:'Computer Science', building:'Block A'},
+ {id:'D102', name:'Information Technology', building:'Block B'}
+] AS row
+MERGE (d:Department {departmentId:row.id})
+SET d.name=row.name, d.building=row.building;
+
+
+ // 3. CREATE FACULTY
+
+UNWIND [
+ {id:'F101', name:'Dr. Meera Sen',
+  designation:'Associate Professor', spec:'Database Systems'},
+ {id:'F102', name:'Dr. Amit Roy',
+  designation:'Assistant Professor', spec:'Data Analytics'}
+] AS row
+MERGE (f:Faculty {facultyId:row.id})
+SET f.name=row.name,
+    f.designation=row.designation,
+    f.specialization=row.spec;
+
+
+ // 4. CREATE COURSES
+
+UNWIND [
+ {code:'CS301', title:'Graph Analytics', credits:3, level:'Advanced'},
+ {code:'CS302', title:'Database Management Systems', credits:4, level:'Core'},
+ {code:'CS303', title:'Data Mining', credits:3, level:'Advanced'},
+ {code:'CS304', title:'Big Data Analytics', credits:4, level:'Advanced'},
+ {code:'CS305', title:'NoSQL Databases', credits:3, level:'Core'}
+] AS row
+MERGE (c:Course {courseCode:row.code})
+SET c.title=row.title,
+    c.credits=row.credits,
+    c.level=row.level;
+
+
+ // 5. CREATE STUDENTS
+
+UNWIND [
+ {id:'S101', name:'Aarav Sharma', sem:5, email:'aarav@univ.edu'},
+ {id:'S102', name:'Priya Das', sem:5, email:'priya@univ.edu'},
+ {id:'S103', name:'Rahul Verma', sem:3, email:'rahul@univ.edu'},
+ {id:'S104', name:'Sneha Roy', sem:3, email:'sneha@univ.edu'},
+ {id:'S105', name:'Arjun Patel', sem:5, email:'arjun@univ.edu'}
+] AS row
+MERGE (s:Student {studentId:row.id})
+SET s.name=row.name,
+    s.semester=row.sem,
+    s.email=row.email;
+
+
+ // 6. STUDENT -> DEPARTMENT
+
+UNWIND [
+ {d:'D101', students:['S101','S102','S103']},
+ {d:'D102', students:['S104','S105']}
+] AS row
+MATCH (d:Department {departmentId:row.d})
+UNWIND row.students AS sid
+MATCH (s:Student {studentId:sid})
+MERGE (s)-[:BELONGS_TO]->(d);
+
+
+ // 7. DEPARTMENT -> COURSE
+
+UNWIND [
+ {d:'D101', courses:['CS302','CS303','CS305']},
+ {d:'D102', courses:['CS301','CS304']}
+] AS row
+MATCH (d:Department {departmentId:row.d})
+UNWIND row.courses AS cc
+MATCH (c:Course {courseCode:cc})
+MERGE (d)-[:OFFERS]->(c);
+
+
+ // 8. FACULTY -> COURSE
+
+UNWIND [
+ {f:'F101', courses:['CS302','CS305']},
+ {f:'F102', courses:['CS301','CS303','CS304']}
+] AS row
+MATCH (f:Faculty {facultyId:row.f})
+UNWIND row.courses AS cc
+MATCH (c:Course {courseCode:cc})
+MERGE (f)-[t:TEACHES]->(c)
+SET t.academicYear='2026-27';
+
+
+ // 9. STUDENT -> COURSE
+
+UNWIND [
+ {s:'S101', courses:['CS301','CS302','CS305']},
+ {s:'S102', courses:['CS301','CS303']},
+ {s:'S103', courses:['CS302','CS304']},
+ {s:'S104', courses:['CS303','CS305']},
+ {s:'S105', courses:['CS301','CS304']}
+] AS row
+MATCH (s:Student {studentId:row.s})
+UNWIND row.courses AS cc
+MATCH (c:Course {courseCode:cc})
+MERGE (s)-[e:ENROLLED_IN]->(c)
+SET e.semesterEnrolled=s.semester,
+    e.grade='Not Published';
+
+
+ // ==========================================
+ // PART A: VERIFICATION QUERIES
+ // ==========================================
+
+ // 10. DISPLAY COMPLETE GRAPH
+
+MATCH (n)-[r]->(m)
+RETURN n,r,m;
+
+
+ // 11. COUNT NODES BY LABEL
+
+MATCH (n)
+RETURN labels(n)[0] AS Label, count(*) AS Total
+ORDER BY Label;
+
+
+ // 12. RELATIONSHIP TYPES AND DIRECTIONS
+
+MATCH (a)-[r]->(b)
+RETURN labels(a)[0] AS Source,
+       type(r) AS Relationship,
+       labels(b)[0] AS Target,
+       count(*) AS Total
+ORDER BY Relationship;
+
+
+ // ==========================================
+ // PART B: RETRIEVAL AND FILTERING QUERIES
+ // ==========================================
+
+ // 13. STUDENTS IN SEMESTER 5
+
+MATCH (s:Student)
+WHERE s.semester=5
+RETURN s.name AS Student, s.semester AS Semester
+ORDER BY Student;
+
+
+ // 14. COURSES WITH MORE THAN 3 CREDITS
+
+MATCH (c:Course)
+WHERE c.credits>3
+RETURN c.title AS Course, c.credits AS Credits
+ORDER BY Course;
+
+
+ // 15. COURSES TAUGHT BY DR. MEERA SEN
+
+MATCH (:Faculty {name:'Dr. Meera Sen'})
+      -[t:TEACHES]->(c:Course)
+RETURN c.title AS Course,
+       t.academicYear AS AcademicYear
+ORDER BY Course;
+
+
+ // 16. STUDENTS ENROLLED IN GRAPH ANALYTICS
+
+MATCH (s:Student)-[:ENROLLED_IN]->
+      (:Course {title:'Graph Analytics'})
+RETURN s.name AS Student
+ORDER BY Student;
+
+
+ // 17. STUDENTS IN COMPUTER SCIENCE
+
+MATCH (s:Student)-[:BELONGS_TO]->
+      (:Department {name:'Computer Science'})
+RETURN s.name AS Student
+ORDER BY Student;
+
+
+ // 18. COURSES OFFERED BY INFORMATION TECHNOLOGY
+
+MATCH (:Department {name:'Information Technology'})
+      -[:OFFERS]->(c:Course)
+RETURN c.title AS Course
+ORDER BY Course;
+
+
+ // 19. STUDENTS IN NOSQL DATABASES
+
+MATCH (s:Student)-[r:ENROLLED_IN]->
+      (:Course {title:'NoSQL Databases'})
+RETURN s.name AS Student,
+       r.semesterEnrolled AS Semester,
+       r.grade AS Grade
+ORDER BY Student;
+
+
+ // 20. STUDENTS TAKING GRAPH ANALYTICS AND OTHER COURSES
+
+MATCH (s:Student)-[:ENROLLED_IN]->
+      (:Course {title:'Graph Analytics'})
+MATCH (s)-[:ENROLLED_IN]->(o:Course)
+WHERE o.title <> 'Graph Analytics'
+WITH s, o
+ORDER BY o.title
+RETURN s.name AS Student,
+       collect(o.title) AS OtherCourses,
+       count(o) AS OtherCount
+ORDER BY Student;
+
+
+ // 21. TEACHING LOAD PER FACULTY
+
+MATCH (f:Faculty)-[:TEACHES]->(c:Course)
+RETURN f.name AS Faculty,
+       count(c) AS Courses,
+       sum(c.credits) AS TotalCredits
+ORDER BY TotalCredits DESC;
+
+
+ // 22. STUDENT COUNT PER COURSE
+
+MATCH (:Student)-[:ENROLLED_IN]->(c:Course)
+RETURN c.title AS Course, count(*) AS Students
+ORDER BY Students DESC, Course;
